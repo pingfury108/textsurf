@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
+	"github.com/go-rod/rod/lib/proto"
 )
 
 func main() {
@@ -65,13 +66,40 @@ func main() {
 
 	fmt.Println("\nText content from the div elements:")
 	fmt.Println("-------------------------------------")
-	for i, divElem := range divElements {
-		textContent, err := divElem.Text()
+	
+	// Click on the first element
+	if len(divElements) > 0 {
+		fmt.Println("Clicking on the first div element...")
+		err := divElements[0].Click(proto.InputMouseButtonLeft, 1)
 		if err != nil {
-			fmt.Printf("Div %d: Error getting text: %v\n", i+1, err)
-			continue
+			fmt.Printf("Error clicking first element: %v\n", err)
+		} else {
+			fmt.Println("Successfully clicked on the first element!")
+			
+			// Wait for any content to load after clicking
+			time.Sleep(2 * time.Second)
+			page.MustWaitStable()
+			
+			// Print the content accessed after clicking
+			fmt.Println("\nContent after clicking the first element:")
+			fmt.Println("=========================================")
+			
+			// Extract text content from the page after clicking
+			pageText, err := page.MustElement("body").Text()
+			if err != nil {
+				fmt.Printf("Error getting page text: %v\n", err)
+			} else {
+				fmt.Printf("Page text content after clicking:\n%s\n", pageText)
+			}
+			
+			// Also try to get text from the clicked element
+			textContent, err := divElements[0].Text()
+			if err != nil {
+				fmt.Printf("Error getting text from clicked element: %v\n", err)
+			} else {
+				fmt.Printf("\nText from clicked element:\n%s\n", textContent)
+			}
 		}
-		fmt.Printf("Div %d Text:\n%s\n-------------------------------------\n", i+1, textContent)
 	}
 
 	// Wait a bit before closing
