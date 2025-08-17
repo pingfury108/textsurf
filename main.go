@@ -295,7 +295,9 @@ func handleCheckLogin(c *gin.Context) {
 		}
 
 		// 返回cookies并关闭会话
-		c.String(http.StatusOK, cookieStr)
+		c.JSON(http.StatusOK, gin.H{
+			"cookies": cookieStr,
+		})
 
 		// 关闭会话
 		sessionManager.DeleteSession(sessionID)
