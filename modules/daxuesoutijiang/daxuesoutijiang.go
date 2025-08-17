@@ -103,14 +103,16 @@ func (m *DaxuesoutijiangModule) CheckLogin(session *modules.Session) (bool, map[
 	m.pageMutex.Lock()
 	defer m.pageMutex.Unlock()
 
-	// 检查是否已经登录成功
-	// 登录成功后页面URL可能会变化，或者出现用户相关信息
+	// 检查当前页面URL
 	currentURL := session.Page.MustInfo().URL
 	log.Printf("当前页面URL: %s", currentURL)
 
-	// 检查是否有用户相关信息元素
-	_, err := session.Page.Element(".user-info")
-	if err == nil {
+	// 如果URL已经不是登录页面，说明可能已登录成功
+	// 或者检查是否有用户头像元素（表明已登录）
+	_, avatarErr := session.Page.Element("#avatar")
+
+	// 登录成功后通常会跳转到首页或其他页面
+	if currentURL != "https://www.daxuesoutijiang.com/" || avatarErr == nil {
 		// 获取cookies
 		cookies, err := session.Page.Cookies([]string{})
 		if err != nil {
@@ -123,11 +125,14 @@ func (m *DaxuesoutijiangModule) CheckLogin(session *modules.Session) (bool, map[
 			cookieMap[cookie.Name] = cookie.Value
 		}
 
-		return true, cookieMap, nil
+		// 如果有avatar元素或者URL已改变，则认为已登录
+		if avatarErr == nil || currentURL != "https://www.daxuesoutijiang.com/" {
+			return true, cookieMap, nil
+		}
 	}
 
 	// 检查是否有登录失败的提示
-	_, err = session.Page.Element(".error-message")
+	_, err := session.Page.Element(".error-message")
 	if err == nil {
 		return false, nil, fmt.Errorf("登录失败，请重新尝试")
 	}
