@@ -2,7 +2,12 @@ module textsurf
 
 go 1.24.1
 
-require github.com/go-rod/rod v0.116.2
+require (
+	github.com/gin-gonic/gin v1.10.1
+	github.com/go-rod/rod v0.116.2
+	github.com/google/uuid v1.6.0
+	github.com/urfave/cli/v2 v2.27.6
+)
 
 require (
 	github.com/bytedance/sonic v1.11.6 // indirect
@@ -12,7 +17,6 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.5 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
-	github.com/gin-gonic/gin v1.10.1 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.20.0 // indirect
@@ -27,7 +31,6 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	github.com/urfave/cli/v2 v2.27.6 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/ysmood/fetchup v0.2.3 // indirect
 	github.com/ysmood/goob v0.4.0 // indirect

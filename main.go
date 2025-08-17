@@ -7,6 +7,10 @@ import (
 	"os"
 	"time"
 
+	"textsurf/modules"
+	"textsurf/modules/baidu"
+	"textsurf/sessions"
+
 	"github.com/gin-gonic/gin"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
@@ -14,13 +18,36 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var browser *rod.Browser
+// 全局变量存储配置
+var (
+	browser        *rod.Browser
+	moduleRegistry *modules.ModuleRegistry
+	sessionManager *sessions.Manager
+	config         Config // 添加这行来存储全局配置
+)
 
 // 配置结构体
 type Config struct {
 	Port     string
 	Headless bool
 	Debug    bool
+}
+
+// 初始化模块注册表
+func initModuleRegistry() {
+	moduleRegistry = modules.NewModuleRegistry()
+
+	// 注册百度模块
+	baiduModule := baidu.NewBaiduModule()
+	moduleRegistry.Register(baiduModule)
+
+	fmt.Println("Module registry initialized")
+}
+
+// 初始化会话管理器
+func initSessionManager() {
+	sessionManager = sessions.NewManager()
+	fmt.Println("Session manager initialized")
 }
 
 // 初始化浏览器实例
@@ -156,8 +183,142 @@ func handleRequest(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// 创建会话
+func handleCreateSession(c *gin.Context) {
+	moduleName := c.Param("module")
+
+	// 获取模块
+	module, exists := moduleRegistry.Get(moduleName)
+	if !exists {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Module '%s' not found", moduleName),
+		})
+		return
+	}
+
+	// 创建会话
+	session, err := sessionManager.CreateSession(module, config.Headless) // 使用全局配置的 headless 设置
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to create session: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"session_id": session.ID,
+		"module":     moduleName,
+		"created_at": session.CreatedAt,
+	})
+}
+
+// 获取登录二维码
+func handleGetLoginQRCode(c *gin.Context) {
+	sessionID := c.Param("session_id")
+	moduleName := c.Param("module")
+
+	log.Printf("收到获取二维码请求: module=%s, session_id=%s\n", moduleName, sessionID)
+
+	// 获取会话
+	session, exists := sessionManager.GetSession(sessionID)
+	if !exists {
+		log.Printf("会话不存在: %s\n", sessionID)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Session '%s' not found", sessionID),
+		})
+		return
+	}
+
+	// 验证模块
+	if session.Module.Name() != moduleName {
+		log.Printf("模块不匹配: session.module=%s, requested_module=%s\n", session.Module.Name(), moduleName)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Session does not belong to module '%s'", moduleName),
+		})
+		return
+	}
+
+	log.Printf("调用模块 %s 的 GetLoginQRCodeImage 方法\n", moduleName)
+	// 获取二维码图片内容
+	qrCodeImage, err := session.Module.GetLoginQRCodeImage(session)
+	if err != nil {
+		log.Printf("获取二维码失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get QR code: %v", err),
+		})
+		return
+	}
+
+	// 返回图片内容
+	c.Data(http.StatusOK, "image/png", qrCodeImage)
+}
+
+// 检查登录状态
+func handleCheckLogin(c *gin.Context) {
+	sessionID := c.Param("session_id")
+	moduleName := c.Param("module")
+
+	// 获取会话
+	session, exists := sessionManager.GetSession(sessionID)
+	if !exists {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Session '%s' not found", sessionID),
+		})
+		return
+	}
+
+	// 验证模块
+	if session.Module.Name() != moduleName {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Session does not belong to module '%s'", moduleName),
+		})
+		return
+	}
+
+	// 检查登录状态
+	loggedIn, cookies, err := session.Module.CheckLogin(session)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to check login status: %v", err),
+		})
+		return
+	}
+
+	if loggedIn {
+		// 登录成功，转换cookies为分号分隔的字符串
+		cookieStr := ""
+		for name, value := range cookies {
+			if cookieStr != "" {
+				cookieStr += "; "
+			}
+			cookieStr += name + "=" + value
+		}
+
+		// 返回cookies并关闭会话
+		c.String(http.StatusOK, cookieStr)
+
+		// 关闭会话
+		sessionManager.DeleteSession(sessionID)
+	} else {
+		// 仍在等待登录
+		c.JSON(http.StatusOK, gin.H{
+			"session_id": sessionID,
+			"module":     moduleName,
+			"logged_in":  false,
+			"message":    "Waiting for user to scan QR code and login",
+		})
+	}
+}
+
 // 启动服务器
-func startServer(config Config) error {
+func startServer(cfg Config) error {
+	// 存储全局配置
+	config = cfg
+
+	// 初始化模块注册表和会话管理器
+	initModuleRegistry()
+	initSessionManager()
+
 	// 初始化浏览器
 	initBrowser(config.Headless)
 	defer closeBrowser()
@@ -172,6 +333,16 @@ func startServer(config Config) error {
 
 	// 设置路由 - path 参数指定返回类型（text 或 html）
 	r.GET("/fetch/:type", handleRequest)
+
+	// 新增模块化登录相关路由
+	// 创建会话
+	r.POST("/api/:module/session", handleCreateSession)
+
+	// 获取登录二维码
+	r.GET("/api/:module/:session_id/login_img", handleGetLoginQRCode)
+
+	// 检查登录状态并获取cookies
+	r.GET("/api/:module/:session_id/cookies", handleCheckLogin)
 
 	// 添加健康检查接口
 	r.GET("/health", func(c *gin.Context) {
@@ -199,6 +370,7 @@ func startServer(config Config) error {
 					"/fetch/text?url=https://example.com&click_css_path=.load-more&css_path=.result",
 				},
 			},
+			"modules": moduleRegistry.List(),
 			"config": map[string]interface{}{
 				"port":     config.Port,
 				"headless": config.Headless,
@@ -212,10 +384,13 @@ func startServer(config Config) error {
 	fmt.Printf("Headless mode: %v\n", config.Headless)
 	fmt.Printf("Debug mode: %v\n", config.Debug)
 	fmt.Println("\nAPI Examples:")
-	fmt.Printf("GET http://localhost%s/fetch/text?url=https://example.com\n", config.Port)
-	fmt.Printf("GET http://localhost%s/fetch/html?url=https://example.com&css_path=.content\n", config.Port)
-	fmt.Printf("GET http://localhost%s/fetch/text?url=https://example.com&click_css_path=.load-more&css_path=.result\n", config.Port)
-	fmt.Printf("\nService URL: http://localhost%s\n", config.Port)
+	fmt.Printf("GET http://localhost:%s/fetch/text?url=https://example.com\n", config.Port)
+	fmt.Printf("GET http://localhost:%s/fetch/html?url=https://example.com&css_path=.content\n", config.Port)
+	fmt.Printf("GET http://localhost:%s/fetch/text?url=https://example.com&click_css_path=.load-more&css_path=.result\n", config.Port)
+	fmt.Printf("POST http://localhost:%s/api/baidu/session\n", config.Port)
+	fmt.Printf("GET http://localhost:%s/api/baidu/{session_id}/login_img\n", config.Port)
+	fmt.Printf("GET http://localhost:%s/api/baidu/{session_id}/cookies\n", config.Port)
+	fmt.Printf("\nService URL: http://localhost:%s\n", config.Port)
 
 	return r.Run(":" + config.Port)
 }
