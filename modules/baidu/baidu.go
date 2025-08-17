@@ -3,6 +3,7 @@ package baidu
 import (
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"textsurf/modules"
 	"time"
@@ -114,15 +115,15 @@ func (m *BaiduModule) CheckLogin(session *modules.Session) (bool, map[string]str
 	m.pageMutex.Lock()
 	defer m.pageMutex.Unlock()
 
-	// 检查页面是否跳转到登录成功后的页面
-	// 百度登录成功后通常会跳转到用户中心或首页
+	// 检查页面URL
 	url := session.Page.MustInfo().URL
+	log.Printf("当前页面URL: %s", url)
 
-	// 如果URL包含passport.baidu.com但不是登录页，则可能是登录成功了
-	if url != "https://passport.baidu.com/v2/?login" &&
-		(len(url) > 25 ||
-			url == "https://www.baidu.com/" ||
-			url == "https://passport.baidu.com/") {
+	// 百度登录成功后通常会跳转到个人中心页面
+	// 检查是否是个人中心页面
+	if strings.Contains(url, "passport.baidu.com/v3/ucenter") ||
+		strings.Contains(url, "passport.baidu.com/ucenter") ||
+		(strings.Contains(url, "passport.baidu.com") && url != "https://passport.baidu.com/v2/?login") {
 		// 获取cookies
 		cookies, err := session.Page.Cookies([]string{})
 		if err != nil {
@@ -138,8 +139,8 @@ func (m *BaiduModule) CheckLogin(session *modules.Session) (bool, map[string]str
 		return true, cookieMap, nil
 	}
 
-	// 检查是否有登录成功的标志元素
-	_, err := session.Page.Element(".user-name")
+	// 检查是否有登录成功的标志元素 - 用户名
+	_, err := session.Page.Element(".mod-center-username")
 	if err == nil {
 		// 获取cookies
 		cookies, err := session.Page.Cookies([]string{})
@@ -156,8 +157,8 @@ func (m *BaiduModule) CheckLogin(session *modules.Session) (bool, map[string]str
 		return true, cookieMap, nil
 	}
 
-	// 尝试获取用户头像作为登录成功的标志
-	_, err = session.Page.Element(".user-avatar")
+	// 检查是否有登录成功的标志元素 - 用户头像
+	_, err = session.Page.Element(".imgimgClas")
 	if err == nil {
 		// 获取cookies
 		cookies, err := session.Page.Cookies([]string{})

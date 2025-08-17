@@ -64,20 +64,30 @@ curl -X POST http://localhost:8080/api/baidu/session
 
 2. 获取登录二维码：
 ```bash
-curl http://localhost:8080/api/baidu/{session_id}/login_img
+curl http://localhost:8080/api/baidu/{session_id}/login_img --output qr_code.png
 ```
+响应：
+```
+返回二维码图片的二进制数据，可直接保存为图片文件
+```
+
+3. 检查登录状态：
+```bash
+curl http://localhost:8080/api/baidu/{session_id}/check_login
+```
+
 响应：
 ```json
 {
   "session_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
   "module": "baidu",
-  "qr_code_url": "https://passport.baidu.com/qr/image?xxx"
+  "logged_in": true/false
 }
 ```
 
-3. 检查登录状态并获取cookies：
+4. 获取登录后的cookies：
 ```bash
-curl http://localhost:8080/api/baidu/{session_id}/cookies
+curl http://localhost:8080/api/baidu/{session_id}/get_cookies
 ```
 
 如果用户尚未扫码登录：
@@ -93,14 +103,7 @@ curl http://localhost:8080/api/baidu/{session_id}/cookies
 如果用户已扫码登录：
 ```json
 {
-  "session_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "module": "baidu",
-  "logged_in": true,
-  "cookies": {
-    "BDUSS": "xxxxxxxxxx",
-    "STOKEN": "xxxxxxxxxx",
-    // ... 其他cookies
-  }
+  "cookies": "BDUSS=xxxxxxxxxx; STOKEN=xxxxxxxxxx; ..."
 }
 ```
 
@@ -131,15 +134,19 @@ curl http://localhost:8080/api/baidu/{session_id}/cookies
 type Module interface {
     // Name 返回模块名称
     Name() string
-    
-    // GetLoginQRCode 获取登录二维码
-    // 返回二维码图片的URL或base64编码
+
+    // GetLoginQRCode 获取登录二维码URL
+    // 返回二维码图片的URL
     GetLoginQRCode(session *Session) (string, error)
-    
+
+    // GetLoginQRCodeImage 获取登录二维码图片内容
+    // 返回二维码图片的字节数据
+    GetLoginQRCodeImage(session *Session) ([]byte, error)
+
     // CheckLogin 检查是否登录成功
     // 返回是否登录成功和错误信息
     CheckLogin(session *Session) (bool, map[string]string, error)
-    
+
     // Close 关闭会话资源
     Close(session *Session) error
 }
@@ -169,11 +176,15 @@ type Module interface {
 
 ### 获取二维码 `/api/{module}/{session_id}/login_img`
 - 方法: GET
-- 说明: 获取指定会话的登录二维码
+- 说明: 获取指定会话的登录二维码图片
 
-### 检查登录状态 `/api/{module}/{session_id}/cookies`
+### 检查登录状态 `/api/{module}/{session_id}/check_login`
 - 方法: GET
-- 说明: 检查登录状态，登录成功后返回cookies
+- 说明: 检查登录状态，返回是否已登录
+
+### 获取登录后的cookies `/api/{module}/{session_id}/get_cookies`
+- 方法: GET
+- 说明: 获取登录成功后的cookies字符串
 
 ## 许可证
 

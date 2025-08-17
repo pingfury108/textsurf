@@ -281,6 +281,45 @@ func handleCheckLogin(c *gin.Context) {
 	}
 
 	// 检查登录状态
+	loggedIn, _, err := session.Module.CheckLogin(session)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to check login status: %v", err),
+		})
+		return
+	}
+
+	// 返回登录状态
+	c.JSON(http.StatusOK, gin.H{
+		"session_id": sessionID,
+		"module":     moduleName,
+		"logged_in":  loggedIn,
+	})
+}
+
+// 获取登录后的cookies
+func handleGetCookies(c *gin.Context) {
+	sessionID := c.Param("session_id")
+	moduleName := c.Param("module")
+
+	// 获取会话
+	session, exists := sessionManager.GetSession(sessionID)
+	if !exists {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Session '%s' not found", sessionID),
+		})
+		return
+	}
+
+	// 验证模块
+	if session.Module.Name() != moduleName {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Session does not belong to module '%s'", moduleName),
+		})
+		return
+	}
+
+	// 检查登录状态
 	loggedIn, cookies, err := session.Module.CheckLogin(session)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -371,8 +410,11 @@ func startServer(cfg Config) error {
 	// 获取登录二维码
 	r.GET("/api/:module/:session_id/login_img", handleGetLoginQRCode)
 
-	// 检查登录状态并获取cookies
-	r.GET("/api/:module/:session_id/cookies", handleCheckLogin)
+	// 检查登录状态
+	r.GET("/api/:module/:session_id/check_login", handleCheckLogin)
+
+	// 获取登录后的cookies
+	r.GET("/api/:module/:session_id/get_cookies", handleGetCookies)
 
 	// 添加健康检查接口
 	r.GET("/health", func(c *gin.Context) {
@@ -419,7 +461,8 @@ func startServer(cfg Config) error {
 	fmt.Printf("GET http://localhost:%s/fetch/text?url=https://example.com&click_css_path=.load-more&css_path=.result\n", config.Port)
 	fmt.Printf("POST http://localhost:%s/api/baidu/session\n", config.Port)
 	fmt.Printf("GET http://localhost:%s/api/baidu/{session_id}/login_img\n", config.Port)
-	fmt.Printf("GET http://localhost:%s/api/baidu/{session_id}/cookies\n", config.Port)
+	fmt.Printf("GET http://localhost:%s/api/baidu/{session_id}/check_login\n", config.Port)
+	fmt.Printf("GET http://localhost:%s/api/baidu/{session_id}/get_cookies\n", config.Port)
 	fmt.Printf("\nService URL: http://localhost:%s\n", config.Port)
 
 	return r.Run(":" + config.Port)
