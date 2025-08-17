@@ -328,10 +328,21 @@ func startServer(cfg Config) error {
 	// 设置 Gin 模式
 	if !config.Debug {
 		gin.SetMode(gin.ReleaseMode)
+	} else {
+		gin.SetMode(gin.DebugMode)
 	}
 
 	// 创建 Gin 路由器
-	r := gin.Default()
+	r := gin.New()
+	
+	// 只在调试模式下启用 Gin 的日志中间件
+	if config.Debug {
+		r.Use(gin.Logger())
+		r.Use(gin.Recovery())
+	} else {
+		// 在非调试模式下，只使用基本的恢复中间件
+		r.Use(gin.Recovery())
+	}
 
 	// 设置路由 - path 参数指定返回类型（text 或 html）
 	r.GET("/fetch/:type", handleRequest)
