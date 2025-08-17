@@ -9,6 +9,7 @@ import (
 
 	"textsurf/modules"
 	"textsurf/modules/baidu"
+	"textsurf/modules/daxuesoutijiang"
 	"textsurf/sessions"
 
 	"github.com/gin-gonic/gin"
@@ -40,6 +41,10 @@ func initModuleRegistry() {
 	// 注册百度模块
 	baiduModule := baidu.NewBaiduModule()
 	moduleRegistry.Register(baiduModule)
+
+	// 注册大学生搜题匠模块
+	daxuesoutijiangModule := daxuesoutijiang.NewDaxuesoutijiangModule()
+	moduleRegistry.Register(daxuesoutijiangModule)
 
 	fmt.Println("Module registry initialized")
 }
@@ -334,7 +339,19 @@ func startServer(cfg Config) error {
 
 	// 创建 Gin 路由器
 	r := gin.New()
-	
+
+	// 添加 CORS 中间件，支持所有站点访问
+	r.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization")
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	})
+
 	// 只在调试模式下启用 Gin 的日志中间件
 	if config.Debug {
 		r.Use(gin.Logger())

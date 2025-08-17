@@ -102,7 +102,7 @@ func (m *BaiduModule) GetLoginQRCodeImage(session *modules.Session) ([]byte, err
 
 func (m *BaiduModule) CheckLogin(session *modules.Session) (bool, map[string]string, error) {
 	if session.Page == nil {
-		return false, nil, fmt.Errorf("会话页面未初始化")
+		return false, nil, fmt.Errorf("会话页面未初始化，请先获取登录二维码")
 	}
 
 	// 检查页面是否跳转到登录成功后的页面
