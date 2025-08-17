@@ -3,13 +3,17 @@ package daxuesoutijiang
 import (
 	"fmt"
 	"log"
+	"sync"
 	"textsurf/modules"
 	"time"
 
 	"github.com/go-rod/rod/lib/proto"
 )
 
-type DaxuesoutijiangModule struct{}
+type DaxuesoutijiangModule struct {
+	// 为每个模块实例添加一个互斥锁来保护页面访问
+	pageMutex sync.Mutex
+}
 
 func NewDaxuesoutijiangModule() modules.Module {
 	return &DaxuesoutijiangModule{}
@@ -90,9 +94,14 @@ func (m *DaxuesoutijiangModule) GetLoginQRCodeImage(session *modules.Session) ([
 }
 
 func (m *DaxuesoutijiangModule) CheckLogin(session *modules.Session) (bool, map[string]string, error) {
+	// 检查页面是否已初始化
 	if session.Page == nil {
 		return false, nil, fmt.Errorf("会话页面未初始化，请先获取登录二维码")
 	}
+
+	// 使用互斥锁保护对页面的访问，防止并发访问导致的竞态条件
+	m.pageMutex.Lock()
+	defer m.pageMutex.Unlock()
 
 	// 检查是否已经登录成功
 	// 登录成功后页面URL可能会变化，或者出现用户相关信息

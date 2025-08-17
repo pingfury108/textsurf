@@ -3,11 +3,15 @@ package baidu
 import (
 	"fmt"
 	"log"
+	"sync"
 	"textsurf/modules"
 	"time"
 )
 
-type BaiduModule struct{}
+type BaiduModule struct {
+	// 为每个模块实例添加一个互斥锁来保护页面访问
+	pageMutex sync.Mutex
+}
 
 func NewBaiduModule() modules.Module {
 	return &BaiduModule{}
@@ -101,9 +105,14 @@ func (m *BaiduModule) GetLoginQRCodeImage(session *modules.Session) ([]byte, err
 }
 
 func (m *BaiduModule) CheckLogin(session *modules.Session) (bool, map[string]string, error) {
+	// 检查页面是否已初始化
 	if session.Page == nil {
 		return false, nil, fmt.Errorf("会话页面未初始化，请先获取登录二维码")
 	}
+
+	// 使用互斥锁保护对页面的访问，防止并发访问导致的竞态条件
+	m.pageMutex.Lock()
+	defer m.pageMutex.Unlock()
 
 	// 检查页面是否跳转到登录成功后的页面
 	// 百度登录成功后通常会跳转到用户中心或首页
