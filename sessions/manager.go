@@ -84,7 +84,7 @@ func (m *Manager) cleanupExpiredSessions() {
 		m.mutex.Lock()
 		now := time.Now()
 		for id, session := range m.sessions {
-			if now.Sub(session.CreatedAt) > time.Hour {
+			if now.Sub(session.CreatedAt) > time.Minute*20 {
 				session.Module.Close(session)
 				delete(m.sessions, id)
 			}
