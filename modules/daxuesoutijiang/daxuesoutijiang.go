@@ -7,6 +7,7 @@ import (
 	"textsurf/modules"
 	"time"
 
+	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 )
 
@@ -102,6 +103,14 @@ func (m *DaxuesoutijiangModule) CheckLogin(session *modules.Session) (bool, map[
 	// 使用互斥锁保护对页面的访问，防止并发访问导致的竞态条件
 	m.pageMutex.Lock()
 	defer m.pageMutex.Unlock()
+
+	// 检查浏览器实例是否仍然活跃
+	if err := rod.Try(func() {
+		// 测试连接是否仍然有效
+		session.Page.MustInfo()
+	}); err != nil {
+		return false, nil, fmt.Errorf("浏览器连接已关闭: %v", err)
+	}
 
 	// 检查当前页面URL
 	currentURL := session.Page.MustInfo().URL
