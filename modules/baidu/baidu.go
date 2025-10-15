@@ -7,6 +7,8 @@ import (
 	"sync"
 	"textsurf/modules"
 	"time"
+
+	"github.com/go-rod/rod"
 )
 
 type BaiduModule struct {
@@ -114,6 +116,13 @@ func (m *BaiduModule) CheckLogin(session *modules.Session) (bool, map[string]str
 	// 使用互斥锁保护对页面的访问，防止并发访问导致的竞态条件
 	m.pageMutex.Lock()
 	defer m.pageMutex.Unlock()
+
+	// 防止浏览器连接提前关闭导致的 panic
+	if err := rod.Try(func() {
+		session.Page.MustInfo()
+	}); err != nil {
+		return false, nil, fmt.Errorf("浏览器连接已关闭: %v", err)
+	}
 
 	// 检查页面URL
 	url := session.Page.MustInfo().URL

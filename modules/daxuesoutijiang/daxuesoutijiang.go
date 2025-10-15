@@ -11,6 +11,8 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 )
 
+const qrImageTTL = 60 * time.Second
+
 type DaxuesoutijiangModule struct {
 	// 为每个模块实例添加一个互斥锁来保护页面访问
 	pageMutex sync.Mutex
@@ -25,6 +27,9 @@ func (m *DaxuesoutijiangModule) Name() string {
 }
 
 func (m *DaxuesoutijiangModule) GetLoginQRCode(session *modules.Session) (string, error) {
+	m.pageMutex.Lock()
+	defer m.pageMutex.Unlock()
+
 	// 访问大学生搜题匠首页
 	log.Println("正在访问大学生搜题匠首页...")
 	page := session.Browser.MustPage("https://www.daxuesoutijiang.com/")
@@ -67,6 +72,7 @@ func (m *DaxuesoutijiangModule) GetLoginQRCode(session *modules.Session) (string
 
 	// 将图片保存到会话数据中
 	session.Data["qrImage"] = imgBytes
+	session.Data["qrImageFetchedAt"] = time.Now()
 	log.Println("成功获取二维码图片内容")
 
 	// 返回一个标识符，表示图片已保存在会话中
@@ -77,7 +83,9 @@ func (m *DaxuesoutijiangModule) GetLoginQRCode(session *modules.Session) (string
 func (m *DaxuesoutijiangModule) GetLoginQRCodeImage(session *modules.Session) ([]byte, error) {
 	// 如果已经获取过二维码图片，直接返回
 	if imgData, ok := session.Data["qrImage"].([]byte); ok {
-		return imgData, nil
+		if fetchedAt, tsOK := session.Data["qrImageFetchedAt"].(time.Time); tsOK && time.Since(fetchedAt) < qrImageTTL {
+			return imgData, nil
+		}
 	}
 
 	// 否则重新获取二维码
