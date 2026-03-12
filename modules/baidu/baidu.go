@@ -107,6 +107,18 @@ func (m *BaiduModule) GetLoginQRCodeImage(session *modules.Session) ([]byte, err
 	return imgBytes, nil
 }
 
+func (m *BaiduModule) PrepareSMSLogin(session *modules.Session) (map[string]interface{}, error) {
+	return nil, fmt.Errorf("百度模块不支持短信登录")
+}
+
+func (m *BaiduModule) SendSMSCode(session *modules.Session, phoneNumber string) error {
+	return fmt.Errorf("百度模块不支持短信登录")
+}
+
+func (m *BaiduModule) VerifySMSCode(session *modules.Session, smsCode string) error {
+	return fmt.Errorf("百度模块不支持短信登录")
+}
+
 func (m *BaiduModule) CheckLogin(session *modules.Session) (bool, map[string]string, error) {
 	// 检查页面是否已初始化
 	if session.Page == nil {

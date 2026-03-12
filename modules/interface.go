@@ -29,6 +29,18 @@ type Module interface {
 	// 返回二维码图片的字节数据
 	GetLoginQRCodeImage(session *Session) ([]byte, error)
 
+	// PrepareSMSLogin 准备短信登录页面
+	// 返回登录页面相关信息
+	PrepareSMSLogin(session *Session) (info map[string]interface{}, err error)
+
+	// SendSMSCode 发送短信验证码
+	// phoneNumber: 手机号码
+	SendSMSCode(session *Session, phoneNumber string) error
+
+	// VerifySMSCode 验证短信验证码并提交登录
+	// smsCode: 短信验证码
+	VerifySMSCode(session *Session, smsCode string) error
+
 	// CheckLogin 检查是否登录成功
 	// 返回是否登录成功和错误信息
 	CheckLogin(session *Session) (bool, map[string]string, error)

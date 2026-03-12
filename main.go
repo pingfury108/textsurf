@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"textsurf/modules"
+	"textsurf/modules/baichuanweb"
 	"textsurf/modules/baidu"
 	"textsurf/modules/daxuesoutijiang"
 	"textsurf/sessions"
@@ -45,6 +46,10 @@ func initModuleRegistry() {
 	// 注册大学生搜题匠模块
 	daxuesoutijiangModule := daxuesoutijiang.NewDaxuesoutijiangModule()
 	moduleRegistry.Register(daxuesoutijiangModule)
+
+	// 注册百川网模块
+	baichuanwebModule := baichuanweb.NewBaichuanwebModule()
+	moduleRegistry.Register(baichuanwebModule)
 
 	fmt.Println("Module registry initialized")
 }
@@ -356,6 +361,152 @@ func handleGetCookies(c *gin.Context) {
 	}
 }
 
+// 准备短信登录页面
+func handlePrepareSMSLogin(c *gin.Context) {
+	sessionID := c.Param("session_id")
+	moduleName := c.Param("module")
+
+	log.Printf("收到准备短信登录请求: module=%s, session_id=%s\n", moduleName, sessionID)
+
+	session, exists := sessionManager.GetSession(sessionID)
+	if !exists {
+		log.Printf("会话不存在: %s\n", sessionID)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Session '%s' not found", sessionID),
+		})
+		return
+	}
+
+	if session.Module.Name() != moduleName {
+		log.Printf("模块不匹配: session.module=%s, requested_module=%s\n", session.Module.Name(), moduleName)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Session does not belong to module '%s'", moduleName),
+		})
+		return
+	}
+
+	info, err := session.Module.PrepareSMSLogin(session)
+	if err != nil {
+		log.Printf("准备短信登录失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to prepare SMS login: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"session_id": sessionID,
+		"module":     moduleName,
+		"status":     "prepared",
+		"info":       info,
+	})
+}
+
+// 发送短信验证码
+func handleSendSMSCode(c *gin.Context) {
+	sessionID := c.Param("session_id")
+	moduleName := c.Param("module")
+
+	var req struct {
+		PhoneNumber string `json:"phone_number" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	log.Printf("收到发送验证码请求: module=%s, session_id=%s, phone=%s\n", moduleName, sessionID, req.PhoneNumber)
+
+	session, exists := sessionManager.GetSession(sessionID)
+	if !exists {
+		log.Printf("会话不存在: %s\n", sessionID)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Session '%s' not found", sessionID),
+		})
+		return
+	}
+
+	if session.Module.Name() != moduleName {
+		log.Printf("模块不匹配: session.module=%s, requested_module=%s\n", session.Module.Name(), moduleName)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Session does not belong to module '%s'", moduleName),
+		})
+		return
+	}
+
+	err := session.Module.SendSMSCode(session, req.PhoneNumber)
+	if err != nil {
+		log.Printf("发送验证码失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to send SMS code: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"session_id":   sessionID,
+		"module":       moduleName,
+		"status":       "sent",
+		"phone_number": req.PhoneNumber,
+		"message":      "验证码已发送",
+	})
+}
+
+// 验证短信验证码
+func handleVerifySMSCode(c *gin.Context) {
+	sessionID := c.Param("session_id")
+	moduleName := c.Param("module")
+
+	var req struct {
+		SMSCode string `json:"sms_code" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	log.Printf("收到验证码验证请求: module=%s, session_id=%s\n", moduleName, sessionID)
+
+	session, exists := sessionManager.GetSession(sessionID)
+	if !exists {
+		log.Printf("会话不存在: %s\n", sessionID)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Session '%s' not found", sessionID),
+		})
+		return
+	}
+
+	if session.Module.Name() != moduleName {
+		log.Printf("模块不匹配: session.module=%s, requested_module=%s\n", session.Module.Name(), moduleName)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Session does not belong to module '%s'", moduleName),
+		})
+		return
+	}
+
+	err := session.Module.VerifySMSCode(session, req.SMSCode)
+	if err != nil {
+		log.Printf("验证验证码失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to verify SMS code: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"session_id": sessionID,
+		"module":     moduleName,
+		"status":     "verified",
+		"message":    "验证码已提交，等待登录结果",
+	})
+}
+
 // 启动服务器
 func startServer(cfg Config) error {
 	// 存储全局配置
@@ -409,6 +560,15 @@ func startServer(cfg Config) error {
 
 	// 获取登录二维码
 	r.GET("/api/:module/:session_id/login_img", handleGetLoginQRCode)
+
+	// 准备短信登录页面
+	r.POST("/api/:module/:session_id/prepare_sms", handlePrepareSMSLogin)
+
+	// 发送短信验证码
+	r.POST("/api/:module/:session_id/send_sms", handleSendSMSCode)
+
+	// 验证短信验证码
+	r.POST("/api/:module/:session_id/verify_sms", handleVerifySMSCode)
 
 	// 检查登录状态
 	r.GET("/api/:module/:session_id/check_login", handleCheckLogin)

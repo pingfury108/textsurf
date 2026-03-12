@@ -102,6 +102,18 @@ func (m *DaxuesoutijiangModule) GetLoginQRCodeImage(session *modules.Session) ([
 	return nil, fmt.Errorf("无法获取二维码图片")
 }
 
+func (m *DaxuesoutijiangModule) PrepareSMSLogin(session *modules.Session) (map[string]interface{}, error) {
+	return nil, fmt.Errorf("大学生搜题匠模块不支持短信登录")
+}
+
+func (m *DaxuesoutijiangModule) SendSMSCode(session *modules.Session, phoneNumber string) error {
+	return fmt.Errorf("大学生搜题匠模块不支持短信登录")
+}
+
+func (m *DaxuesoutijiangModule) VerifySMSCode(session *modules.Session, smsCode string) error {
+	return fmt.Errorf("大学生搜题匠模块不支持短信登录")
+}
+
 func (m *DaxuesoutijiangModule) CheckLogin(session *modules.Session) (bool, map[string]string, error) {
 	// 检查页面是否已初始化
 	if session.Page == nil {
