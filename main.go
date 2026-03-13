@@ -17,6 +17,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
+	"github.com/go-rod/stealth"
 	"github.com/urfave/cli/v2"
 )
 
@@ -64,10 +65,13 @@ func initSessionManager() {
 func initBrowser(headless bool) {
 	url := launcher.New().
 		Headless(headless).
+		Set("disable-blink-features", "AutomationControlled").
+		Set("disable-web-security", "true").
+		Set("disable-features", "IsolateOrigins,site-per-process").
 		MustLaunch()
 
 	browser = rod.New().ControlURL(url).MustConnect()
-	fmt.Printf("Browser initialized successfully (headless: %v)\n", headless)
+	fmt.Printf("Browser initialized successfully (headless: %v, stealth: enabled)\n", headless)
 }
 
 // 清理浏览器资源
@@ -102,9 +106,23 @@ func handleRequest(c *gin.Context) {
 	cssPath := c.Query("css_path")
 	clickCssPath := c.Query("click_css_path")
 
-	// 创建新页面
-	page := browser.MustPage(targetURL)
+	// 创建新页面（使用 stealth 反检测）
+	page, pageErr := stealth.Page(browser)
+	if pageErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to create stealth page: %v", pageErr),
+		})
+		return
+	}
 	defer page.MustClose()
+
+	// 设置 User-Agent
+	page.MustSetUserAgent(&proto.NetworkSetUserAgentOverride{
+		UserAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+	})
+
+	// 导航到目标页面
+	page.MustNavigate(targetURL)
 
 	// 等待页面加载完成
 	page.MustWaitStable()

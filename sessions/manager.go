@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
+	"github.com/go-rod/stealth"
 	"github.com/google/uuid"
 )
 
@@ -31,17 +32,28 @@ func NewManager() *Manager {
 
 // CreateSession 创建新会话
 func (m *Manager) CreateSession(module modules.Module, headless bool) (*modules.Session, error) {
-	// 启动浏览器
+	// 启动浏览器（启用反检测）
 	url := launcher.New().
 		Headless(headless).
+		Set("disable-blink-features", "AutomationControlled").
+		Set("disable-web-security", "true").
+		Set("disable-features", "IsolateOrigins,site-per-process").
 		MustLaunch()
 
 	browser := rod.New().ControlURL(url).MustConnect()
+
+	// 创建 stealth 页面
+	page, err := stealth.Page(browser)
+	if err != nil {
+		browser.MustClose()
+		return nil, err
+	}
 
 	// 创建会话
 	session := &modules.Session{
 		ID:        uuid.New().String(),
 		Browser:   browser,
+		Page:      page,
 		CreatedAt: time.Now(),
 		Module:    module,
 		Data:      make(map[string]interface{}),

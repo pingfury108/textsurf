@@ -36,8 +36,15 @@ func (m *BaichuanwebModule) PrepareSMSLogin(session *modules.Session) (map[strin
 	defer m.pageMutex.Unlock()
 
 	log.Println("正在访问百川网登录页面...")
-	page := session.Browser.MustPage("https://www.baichuanweb.com/portal/login")
-	session.Page = page
+
+	// 使用现有的 stealth 页面
+	page := session.Page
+	if page == nil {
+		return nil, fmt.Errorf("会话页面未初始化")
+	}
+
+	// 导航到登录页面
+	page.MustNavigate("https://www.baichuanweb.com/portal/login")
 
 	log.Println("等待页面加载...")
 	page.MustWaitLoad()
